@@ -8,6 +8,6 @@ grk_env.GLSL('shaders')
 def objs(e, name, src):
 	return [e.Object('%s_%s.o'%(name, x), x+'.c') for x in src]
 
-base_src = ['gl', 'math', 'logging','glmath']
+base_src = ['gl', 'math', 'logging','glmath', 'orbital']
 
-exe1 = grk_env.Program('grk', objs(grk_env, 'grk', base_src + ['main']), LIBS=['m', 'GLESv2', 'glfw'])
+exe1 = grk_env.Program('kerbie', objs(grk_env, 'grk', base_src + ['main']), LIBS=['m', 'gmp', 'GLESv2', 'glfw'])
