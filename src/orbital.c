@@ -4,7 +4,9 @@
 #include "math.c"
 #include <gmp.h>
 
+#define MAX_BODIES 32
 #define GCONST (6.67408e-11)
+
 typedef struct s_Body Body;
 
 struct s_Body {
@@ -26,27 +28,27 @@ struct s_Body {
 struct s_Universe {
 	int nbodies;
 	Body bodies[MAX_BODIES];
-}
+};
 
 
-void ob_init(Orbital *self);
-void ob_fini(Orbital *self);
+void bod_init(Body *self);
+void bod_fini(Body *self);
 
 
 #if __INCLUDE_LEVEL__ == 0
 
 #include <string.h>
 
-void ob_init(Orbital *self)
+void bod_init(Body *self)
 {
-	memset(self, 0, sizeof(Orbital));
+	memset(self, 0, sizeof(Body));
 	mpf_init2 (self->x, 256);
 	mpf_init2 (self->y, 256);
 	mpf_init2 (self->vx, 256);
 	mpf_init2 (self->vy, 256);
 }
 
-void ob_fini(Orbital *self)
+void bod_fini(Body *self)
 {
 	mpf_clear(self->x);
 	mpf_clear(self->y);

@@ -2,6 +2,7 @@
 #define GLMATH_C
 
 #include "math.c"
+#include "function.c"
 #include "gl.c"
 
 typedef struct s_View View;
@@ -31,6 +32,7 @@ Color hue(V1 hue);
 
 
 void view_navigate(View *self, int cond, V1 zoom);
+void view_fit(View *self, Function1 *func, int linear);
 V2 unit_to_screen(View *self, V2 view_xy);
 V2 screen_to_view(View *self, V2 xy_screen);
 void view_zoom_at(View *self, V2 xy_view, V2 zoom);
@@ -40,6 +42,16 @@ void grid_render(View *view,  const char* fmtx, const char* fmty, V2 major, V2 m
 void grid_time_render(View *view,  Color clr);
 void grid_vert_render(View *view, Color clr);
 
+void f1_render_init(void);
+void f1_render(Function1 *self, View *view, Color color);
+void fr_render(FunctionRanged *self, View *view, Color color, int linear);
+
+//~ void draw_color(float r, float g, float b, float a);
+//~ void draw_line_strip(GLfloat xy[2], GLfloat scale[2], GLfloat angle, int npts, GLfloat *pts);
+//~ void draw_line_loop(GLfloat xy[2], GLfloat scale[2], GLfloat angle, int npts, GLfloat *pts);
+//~ void draw_lines(GLfloat xy[2], GLfloat scale[2], GLfloat angle, int npts, GLfloat *pts);
+//~ void draw_polygon(GLfloat xy[2], GLfloat scale[2], GLfloat angle, int npts, GLfloat *pts);
+//~ void draw_circle(GLfloat xy[2], GLfloat scale[2]);
 void geom_send(GLenum mode, GLuint aPos, int npts, GLfloat *pts);
 void draw_line_strip(V2 xy, V2 scale, V1 angle, int npts, GLfloat *pts);
 void geom_init(void);
@@ -120,6 +132,126 @@ void view_zoom_at(View *self, V2 xy_view, V2 zoom)
 
 }
 
+void view_fit(View *self, Function1 *func, int linear)
+{
+	V2 xrange = v2(func->x0, func->x0 + func->len*func->dx);
+	V2 yrange = f1_minmax(func);
+	V1 log11 = 10.0/log(1.1);
+	if (!linear)
+		yrange = v2(log11*log(yrange.x), log11*log(yrange.y));
+	V1 yvps = (yrange.y - yrange.x) / GW.h;
+	V1 xvps = (xrange.y - xrange.x) / GW.w;
+	INFO("view_fit   xrange (%f, %f) %f   yrange(%f, %f) %f  %dx%d", xrange.x, xrange.y, xvps, yrange.x, yrange.y, yvps, GW.w, GW.h);
+	self->origin = v2(-xrange.x / xvps, -yrange.x / yvps);// 0.0);//mm.x/yvps);
+	self->vps = v2(xvps, yvps);
+	self->drag = v2(0.0, 0.0);
+	self->ll = screen_to_view(self, v2(0.0, 0.0));
+	self->ur = screen_to_view(self, v2(GW.w , GW.h ));
+
+}
+
+
+/* ============== Function =============
+*/
+
+static Shader g_f1_shader = {0};
+static Texture g_f1_texture = {0, 128, 128, GL_ALPHA, GL_UNSIGNED_BYTE};
+
+void f1_render_init(void)
+{
+	if (g_f1_shader.id)
+		return;
+	
+	ASSERT(shader_init(&g_f1_shader, V_STRAIGHT, F_DFUN, (char*[]){
+		"aPos", "uFramebuffer", "uColor", NULL}),  "Couldn't create shader");
+	on_exit(shader_on_exit, &g_f1_shader);
+	tex_set(&g_f1_texture, 0);
+}
+void tset(char *tex, int i, V2 y)
+{
+	uint16_t ymin = 0xFFFE;
+	uint16_t ymax = 0xFFFF;
+	if (!(y.y < 0.0 || y.x >= GW.h)) {
+		ymin = (y.x < 0.0)? 0 : nearbyint(y.x);
+		ymax = (y.y >= GW.h)? GW.h-1 : nearbyint(y.y);
+	}
+	uint16_t ym = (ymin < ymax)? ymin: ymax;
+	uint16_t yx = (ymin > ymax)? ymin: ((ymin==ymax)? ymin+1: ymax);
+	tex[i*4+0] = (ym>>8)&0xFF;
+	tex[i*4+1] = ym&0xFF;
+	tex[i*4+2] = (yx>>8)&0xFF;
+	tex[i*4+3] = yx&0xFF;	
+	
+}
+
+void fr_render(FunctionRanged *self, View *view, Color color, int linear)
+{
+	char *tex = alloca(128*128);
+	ASSERT(view->vps.x == self->dx, "Resolutions must match %f  %f", view->vps.x, self->dx);
+	
+	int64_t i0 = floor(view->ll.x / self->dx);
+	V2 y;
+	V1 y0 = 0.0 - (view->origin.y + view->drag.y) * view->vps.y;
+	V2 prev;
+	static const V1 log11 = 10.0/log(1.1);
+	for (int64_t i = i0; i < i0 + GW.w; ++i) {
+		if ( i >= self->i0 && i < self->i0 + self->len) {
+			y = self->mm[i - self->i0];
+			//~ if (!linear)
+				//~ y = v2(log11*log(y.x), log11*log(y.y));
+			y = v2div(v2sub(y, v2(y0+self->yoff, y0+self->yoff)), view->vps.y);
+		} else {
+			y = v2(1e100, 1e100);
+		}
+		tset(tex, i-i0, y);
+	}
+	
+	glUseProgram(g_f1_shader.id);
+	tex_set(&g_f1_texture, tex);
+	glUniform1i(g_f1_shader.args[1], 0); // uFramebuffer
+	glUniform4fv(g_f1_shader.args[2], 1, color.rgba); // uColor
+	geom_send(GL_TRIANGLE_STRIP, g_f1_shader.args[0], 4, GEOM_FSRECT);
+}
+
+
+void f1_render(Function1 *self, View *view, Color color)
+{
+	char *tex = alloca(128*128);
+	V1 x0 = 0.0 - (view->origin.x + view->drag.x) * view->vps.x;
+	V1 y0 = 0.0 - (view->origin.y + view->drag.y) * view->vps.y;
+	V2 x, y;
+	Function2 subfunc;
+	f2_init(&subfunc,1024);
+	for(int i=0; i < GW.w; ++i) {
+		x = v2(x0 + i*view->vps.x, x0 + (i+1)*view->vps.x);
+		f2_subfunc1(&subfunc, self, x);
+		//~ INFO("%f =  %f %f", subfunc.pts[0].y, x.x);
+		y = v2(subfunc.pts[0].y, subfunc.pts[0].y);//
+		y = f2_minmax(&subfunc);
+		// scale it
+		y = v2div(v2sub(y, v2(y0, y0)), view->vps.y);
+		uint16_t ymin = 0xFFFE;
+		uint16_t ymax = 0xFFFF;
+		if (!(y.y < 0.0 || y.x >= GW.h || x.y <= self->x0 || x.x >= self->x0 + self->dx*self->len)) {
+			ymin = (y.x < 0.0)? 0 : nearbyint(y.x);
+			ymax = (y.y >= GW.h)? GW.h-1 : nearbyint(y.y);
+		}
+		uint16_t ym = (ymin < ymax)? ymin: ymax;
+		uint16_t yx = (ymin > ymax)? ymin: ((ymin==ymax)? ymin+1: ymax);
+		tex[i*4+0] = (ym>>8)&0xFF;
+		tex[i*4+1] = ym&0xFF;
+		tex[i*4+2] = (yx>>8)&0xFF;
+		tex[i*4+3] = yx&0xFF;	
+	}
+	
+	//~ compile_graph(&gph0, fun, v2(x0-dx0, x0-dx0 + GW.w*ppx), v2(-1.0, 1.0));
+	
+	glUseProgram(g_f1_shader.id);
+	tex_set(&g_f1_texture, tex);
+	glUniform1i(g_f1_shader.args[1], 0); // uFramebuffer
+	glUniform4fv(g_f1_shader.args[2], 1, color.rgba); // uColor
+	geom_send(GL_TRIANGLE_STRIP, g_f1_shader.args[0], 4, GEOM_FSRECT);
+}
 
 
 /* ============== Geometry =============
