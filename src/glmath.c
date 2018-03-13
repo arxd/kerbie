@@ -7,7 +7,14 @@
 
 typedef struct s_View View;
 typedef union s_Color Color;
+typedef struct s_F1Vis F1Vis;
 
+struct s_F1Vis {
+	F1Vis *next, *prev;
+	Function1 *f;
+	V2 mms[2048];
+	
+};
 
 struct s_View {
 	V2 origin; // origin of this view in screen coordinates
@@ -44,7 +51,11 @@ void grid_vert_render(View *view, Color clr);
 
 void f1_render_init(void);
 void f1_render(Function1 *self, View *view, Color color);
-void fr_render(FunctionRanged *self, View *view, Color color, int linear);
+//~ void fr_render(FunctionRanged *self, View *view, Color color, int linear);
+
+void fr_registor(Function1 *func);
+void fr_render(void);
+
 
 //~ void draw_color(float r, float g, float b, float a);
 //~ void draw_line_strip(GLfloat xy[2], GLfloat scale[2], GLfloat angle, int npts, GLfloat *pts);
@@ -61,6 +72,8 @@ void font_init(void);
 void font_render(V2 screen_xy, const char *fmt, ...);
 void font_test(void);
 
+void glmath_init(void);
+
 #if __INCLUDE_LEVEL__ == 0
 
 #include <math.h>
@@ -70,11 +83,22 @@ void font_test(void);
 #include "logging.c"
 #include "shaders.h"
 
+static F1View g_view;
 View view;
 Color color;
 static Shader g_grid_shader = {0};
 static GLfloat GEOM_FSRECT[2*4] = {-1.0,-1.0,  -1.0,1.0,  1.0,-1.0,  1.0,1.0};
 static GLfloat GEOM_RECT[] = {0.0,0.0,   0.0,1.0,   1.0,0.0,   1.0,1.0};
+
+
+void glmath_init(void)
+{
+	geom_init();
+	grid_render_init();
+	font_init();
+	f1_render_init();
+	g_view.next = g_view.prev = &g_view;
+}
 
 
 Color rgb(V1 r, V1 g, V1 b)
@@ -92,6 +116,30 @@ Color hue(V1 hue)
 	return hsv(hue, 1.0, 0.5);
 }
 
+
+void fr_registor(Function1 *func)
+{
+	F1View *view= malloc(sizeof(F1View));
+	view->next = g_view.next;
+	view->prev = &g_view;
+	view->next->prev = view;
+	view->prev->next = view;
+	view->f = func;
+	
+	
+	
+}
+
+void fr_render(void)
+{
+	F1View *view = g_view.next;
+	while (view != &g_view) {
+		
+		
+		view = view->next;
+	}
+	
+}
 
 
 void view_navigate(View *self, int cond, V1 zoom)
