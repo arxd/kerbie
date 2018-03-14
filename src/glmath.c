@@ -68,6 +68,7 @@ void fr_render(void);
 //~ void draw_circle(GLfloat xy[2], GLfloat scale[2]);
 void geom_send(GLenum mode, GLuint aPos, int npts, GLfloat *pts);
 void draw_line_strip(V2 xy, V2 scale, V1 angle, int npts, GLfloat *pts);
+void draw_points(V2 xy, V2 scale, V1 angle, int npts, GLfloat *pts);
 void geom_init(void);
 void bind_geom(GLuint aPos, int npts, GLfloat *pts);
 
@@ -136,7 +137,7 @@ static void _render_lines(Function1 *f)
 {
 	
 	int a = floor((view.ll.x - f->x0) / f->dx);
-	int b = floor((view.ur.x -f->x0) / f->dx) + 1;
+	int b = floor((view.ur.x -f->x0) / f->dx) + 2;
 	a = (a < 0)? 0 : (a > f->len? f->len: a);
 	b = (b < 0)? 0 : (b > f->len? f->len: b);
 	if (a == b)
@@ -149,11 +150,11 @@ static void _render_lines(Function1 *f)
 	draw_line_strip(v2(0.0, 0.0), v2(1.0, 1.0), 0.0, b-a, pts);
 }
 
-static void _render_dots(Function1 *f)
+static void _render_points(Function1 *f)
 {
 	
 	int a = floor((view.ll.x - f->x0) / f->dx);
-	int b = floor((view.ur.x -f->x0) / f->dx) + 1;
+	int b = floor((view.ur.x -f->x0) / f->dx) + 2;
 	a = (a < 0)? 0 : (a > f->len? f->len: a);
 	b = (b < 0)? 0 : (b > f->len? f->len: b);
 	if (a == b)
@@ -163,13 +164,14 @@ static void _render_dots(Function1 *f)
 		pts[i*2+0] = (a+i)*f->dx + f->x0;
 		pts[i*2+1] = f->ys[a+i];
 	}
-	draw_line_strip(v2(0.0, 0.0), v2(1.0, 1.0), 0.0, b-a, pts);
+	draw_points(v2(0.0, 0.0), v2(1.0, 1.0), 0.0, b-a, pts);
 }
 
 
 void fr_render(void)
 {
 	glLineWidth(1.0);
+	//~ glPointSize(4.0);
 	//~ color=rgb(1.0,1.0,1.0);
 	//~ draw_line_strip(v2(0.0, 0.0), v2(1.0, 1.0), 0.0, 2, (GLfloat[]){(GLfloat)view.ll.x, (GLfloat)view.ll.y, (GLfloat)view.ur.x, (GLfloat)view.ur.y});
 	
@@ -177,6 +179,8 @@ void fr_render(void)
 	while (f != &g_funcs) {
 		color = f->color;
 		_render_lines(f->f);
+		if ( (view.ur.x - view.ll.x)/f->f->dx < GW.w/8.0)
+			_render_points(f->f);
 		f = f->next;
 	}
 }
@@ -411,6 +415,11 @@ void circle_render(GLuint aPos, V2 ll, V2 ur)
 {
 	
 	
+}
+
+void draw_points(V2 xy, V2 scale, V1 angle, int npts, GLfloat *pts)
+{
+	geom_render(GL_POINTS, xy, scale, angle, npts, pts);
 }
 
 void draw_line_strip(V2 xy, V2 scale, V1 angle, int npts, GLfloat *pts)

@@ -8,7 +8,7 @@ typedef struct s_Function1 Function1;
 typedef struct s_Function2 Function2;
 typedef struct s_Function11 Function11;
 typedef struct s_FunctionRanged FunctionRanged;
-typedef V1 MapFunc(V1);
+typedef V1 MapFunc(Function1 *, int, V1);
 
 struct s_Function1 {
 	int len, memlen;
@@ -33,6 +33,8 @@ struct s_FunctionRanged {
 
 void f1_init(Function1 *self, int memlen);
 void f1_init_copy(Function1 *self, Function1 *other);
+void f1_init_map(Function1 *self, int len, V2 xrange, MapFunc *func);
+
 void f1_resize(Function1 *self, int len);
 void f1_fini(Function1 *self);
 V1 f1_eval_at(Function1 *self, V1 x);
@@ -70,8 +72,21 @@ void f1_init(Function1 *self, int memlen)
 {
 	memset(self, 0, sizeof(Function1));
 	self->memlen = memlen;
-	self->ys = malloc(sizeof(V1) * self->memlen);
+	self->ys = malloc(sizeof(V1) * memlen);	
 	ASSERT(self->ys, "Out of Mem");
+}
+
+void f1_init_map(Function1 *self, int len, V2 xrange, MapFunc *func)
+{
+	self->memlen = len;
+	self->len = len;
+	self->dx = (xrange.y - xrange.x) / (len-1);
+	self->x0 = xrange.x;
+	self->ys = malloc(sizeof(V1) * len);
+	for (int i=0; i < len; ++i)
+		self->ys[i] = func(self, i, self->x0 + i * self->dx);
+	ASSERT(self->ys, "Out of Mem");
+	
 }
 
 void f1_init_copy(Function1 *self, Function1 *other)
@@ -101,12 +116,49 @@ void f1_resize(Function1 *self, int len)
 	self->len = len;
 }
 
+V1 f1_eval_at(Function1 *self, V1 x)
+{
+	double di = (x - self->x0) / self->dx;
+	long long i = floor(di);
+	double dt = di - i;
+	double a = (i < 0)? self->ys[0]: ((i >= self->len)? self->ys[self->len-1]: self->ys[i]);
+	++i;
+	double b = (i < 0)? self->ys[0]: ((i >= self->len)? self->ys[self->len-1]: self->ys[i]);
+	
+	return (b-a)*dt + a;
+}
+
+void f1_map(Function1 *self, MapFunc *func)
+{
+	int i;
+	for (int i=0; i < self->len; ++i)
+		self->ys[i] = func(self, i, self->x0 + i * self->dx);
+}
+
+V2 f1_minmax(Function1 *self)
+{
+	if (self->len ==0)
+		return v2(0.0, 0.0);
+	
+	V2 mm = v2(self->ys[0], self->ys[0]);
+	for (int i=1; i < self->len; ++i) {
+		if (self->ys[i] < mm.x)
+			mm.x = self->ys[i];
+		if (self->ys[i] > mm.y)
+			mm.y = self->ys[i];
+	}
+	return mm;
+}
+
+
 void f1_integrate_0(Function1 *self, Function1 *func)
 {
 	
 	
 	
 }
+
+
 
 void f1_derivative(Function1 *self, Function1 *func)
 {
@@ -218,39 +270,6 @@ void f1_append(Function1 *self, V1 y)
 }
 
 
-V1 f1_eval_at(Function1 *self, V1 x)
-{
-	double di = (x - self->x0) / self->dx;
-	long long i = floor(di);
-	double dt = di - i;
-	double a = (i < 0)? self->ys[0]: ((i >= self->len)? self->ys[self->len-1]: self->ys[i]);
-	++i;
-	double b = (i < 0)? self->ys[0]: ((i >= self->len)? self->ys[self->len-1]: self->ys[i]);
-	
-	return (b-a)*dt + a;
-}
-
-void f1_map(Function1 *self, MapFunc *func)
-{
-	int i;
-	for (int i=0; i < self->len; ++i)
-		self->ys[i] = func(self->ys[i]);
-}
-
-V2 f1_minmax(Function1 *self)
-{
-	if (self->len ==0)
-		return v2(0.0, 0.0);
-	
-	V2 mm = v2(self->ys[0], self->ys[0]);
-	for (int i=1; i < self->len; ++i) {
-		if (self->ys[i] < mm.x)
-			mm.x = self->ys[i];
-		if (self->ys[i] > mm.y)
-			mm.y = self->ys[i];
-	}
-	return mm;
-}
 
 V2 f2_minmax(Function2 *self)
 {
