@@ -87,15 +87,16 @@ void gl_init(void)
 		}
 	}
 	
-	fr_init(&Qr, 1024);
-	fr_init(&Fr, 1024);
-	fr_init(&Ar, 1024);
-	fr_init(&Br, 1024);
+	fr_register(&Q, rgb(1.0,1.0,0.0));
+	//~ fr_init(&Qr, 1024);
+	//~ fr_init(&Fr, 1024);
+	//~ fr_init(&Ar, 1024);
+	//~ fr_init(&Br, 1024);
 	
-	fr_compile(&Qr, &Q, view.vps.x);
-	fr_compile(&Fr, &F, view.vps.x);
-	fr_compile(&Ar, &A, view.vps.x);
-	fr_compile(&Br, &B, view.vps.x);
+	//~ fr_compile(&Qr, &Q, view.vps.x);
+	//~ fr_compile(&Fr, &F, view.vps.x);
+	//~ fr_compile(&Ar, &A, view.vps.x);
+	//~ fr_compile(&Br, &B, view.vps.x);
 	
 }
 
@@ -104,20 +105,21 @@ int gl_frame(void)
 {
 	glClear(GL_COLOR_BUFFER_BIT);
 	view_navigate(&view, GW.m.btn, 1.25);
-	if (view.vps.x != prev_vps) {
+	//~ if (view.vps.x != prev_vps) {
 		//~ if (view.vps.x < B.dx)
 			//~ view_zoom_at(&view, screen_to_view(&view, v2(GW.m.hx, GW.m.hy)), v2(B.dx, view.vps.y));
-		fr_compile(&Qr, &Q, view.vps.x);
-		fr_compile(&Fr, &F, view.vps.x);
-		fr_compile(&Ar, &A, view.vps.x);
-		fr_compile(&Br, &B, view.vps.x);
-		prev_vps = view.vps.x;
-	}
+		//~ fr_compile(&Qr, &Q, view.vps.x);
+		//~ fr_compile(&Fr, &F, view.vps.x);
+		//~ fr_compile(&Ar, &A, view.vps.x);
+		//~ fr_compile(&Br, &B, view.vps.x);
+		//~ prev_vps = view.vps.x;
+	//~ }
 
-	fr_render(&Qr, &view, rgb(1.0, 1.0, 0.0), 1);
+	//~ fr_render(&Qr, &view, rgb(1.0, 1.0, 0.0), 1);
 	//~ fr_render(&Fr, &view, rgb(0.0, 1.0, 0.0), 1);
-	fr_render(&Ar, &view, rgb(0.0, 1.0, 1.0), 1);
-	fr_render(&Br, &view, rgb(0.0, 0.0, 1.0), 1);
+	//~ fr_render(&Ar, &view, rgb(0.0, 1.0, 1.0), 1);
+	//~ fr_render(&Br, &view, rgb(0.0, 0.0, 1.0), 1);
+	fr_render();
 	
 	glLineWidth(1.0);
 	color = rgb(1.0,1.0,1.0);

@@ -9,9 +9,18 @@ typedef struct s_View View;
 typedef union s_Color Color;
 typedef struct s_F1Vis F1Vis;
 
+union s_Color {
+	float rgba[4];
+	struct {
+		float r,g,b,a;
+	};
+};
+
 struct s_F1Vis {
 	F1Vis *next, *prev;
 	Function1 *f;
+	Color color;
+	V1 width;
 	V2 mms[2048];
 	
 };
@@ -25,12 +34,6 @@ struct s_View {
 };
 extern View view;
 
-union s_Color {
-	float rgba[4];
-	struct {
-		float r,g,b,a;
-	};
-};
 extern Color color;
 
 Color rgb(V1 r, V1 g, V1 b);
@@ -53,7 +56,7 @@ void f1_render_init(void);
 void f1_render(Function1 *self, View *view, Color color);
 //~ void fr_render(FunctionRanged *self, View *view, Color color, int linear);
 
-void fr_registor(Function1 *func);
+void fr_register(Function1 *func, Color color);
 void fr_render(void);
 
 
@@ -83,7 +86,7 @@ void glmath_init(void);
 #include "logging.c"
 #include "shaders.h"
 
-static F1View g_view;
+static F1Vis g_funcs;
 View view;
 Color color;
 static Shader g_grid_shader = {0};
@@ -97,7 +100,7 @@ void glmath_init(void)
 	grid_render_init();
 	font_init();
 	f1_render_init();
-	g_view.next = g_view.prev = &g_view;
+	g_funcs.next = g_funcs.prev = &g_funcs;
 }
 
 
@@ -117,28 +120,65 @@ Color hue(V1 hue)
 }
 
 
-void fr_registor(Function1 *func)
+void fr_register(Function1 *func, Color color)
 {
-	F1View *view= malloc(sizeof(F1View));
-	view->next = g_view.next;
-	view->prev = &g_view;
-	view->next->prev = view;
-	view->prev->next = view;
-	view->f = func;
-	
-	
-	
+	F1Vis *f= malloc(sizeof(F1Vis));
+	f->next = g_funcs.next;
+	f->prev = &g_funcs;
+	f->next->prev = f;
+	f->prev->next = f;
+	f->f = func;
+	f->color = color;
+	//~ f->width = width;
 }
+
+static void _render_lines(Function1 *f)
+{
+	
+	int a = floor((view.ll.x - f->x0) / f->dx);
+	int b = floor((view.ur.x -f->x0) / f->dx) + 1;
+	a = (a < 0)? 0 : (a > f->len? f->len: a);
+	b = (b < 0)? 0 : (b > f->len? f->len: b);
+	if (a == b)
+		return;
+	GLfloat *pts = alloca(sizeof(GLfloat)*2*(b-a));
+	for (int i = 0; i < (b-a); ++i) {
+		pts[i*2+0] = (a+i)*f->dx + f->x0;
+		pts[i*2+1] = f->ys[a+i];
+	}
+	draw_line_strip(v2(0.0, 0.0), v2(1.0, 1.0), 0.0, b-a, pts);
+}
+
+static void _render_dots(Function1 *f)
+{
+	
+	int a = floor((view.ll.x - f->x0) / f->dx);
+	int b = floor((view.ur.x -f->x0) / f->dx) + 1;
+	a = (a < 0)? 0 : (a > f->len? f->len: a);
+	b = (b < 0)? 0 : (b > f->len? f->len: b);
+	if (a == b)
+		return;
+	GLfloat *pts = alloca(sizeof(GLfloat)*2*(b-a));
+	for (int i = 0; i < (b-a); ++i) {
+		pts[i*2+0] = (a+i)*f->dx + f->x0;
+		pts[i*2+1] = f->ys[a+i];
+	}
+	draw_line_strip(v2(0.0, 0.0), v2(1.0, 1.0), 0.0, b-a, pts);
+}
+
 
 void fr_render(void)
 {
-	F1View *view = g_view.next;
-	while (view != &g_view) {
-		
-		
-		view = view->next;
-	}
+	glLineWidth(1.0);
+	//~ color=rgb(1.0,1.0,1.0);
+	//~ draw_line_strip(v2(0.0, 0.0), v2(1.0, 1.0), 0.0, 2, (GLfloat[]){(GLfloat)view.ll.x, (GLfloat)view.ll.y, (GLfloat)view.ur.x, (GLfloat)view.ur.y});
 	
+	F1Vis *f = g_funcs.next;
+	while (f != &g_funcs) {
+		color = f->color;
+		_render_lines(f->f);
+		f = f->next;
+	}
 }
 
 
@@ -232,7 +272,7 @@ void tset(char *tex, int i, V2 y)
 	
 }
 
-void fr_render(FunctionRanged *self, View *view, Color color, int linear)
+void fr_render2(FunctionRanged *self, View *view, Color color, int linear)
 {
 	char *tex = alloca(128*128);
 	ASSERT(view->vps.x == self->dx, "Resolutions must match %f  %f", view->vps.x, self->dx);
